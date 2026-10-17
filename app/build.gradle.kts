@@ -17,8 +17,8 @@ android {
         applicationId = "app.drivegram"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
         buildConfigField("int", "TG_API_ID", local.getProperty("telegram.apiId", "0").ifBlank { "0" })
         buildConfigField("String", "TG_API_HASH", "\"${local.getProperty("telegram.apiHash", "")}\"")
     }
@@ -46,7 +46,8 @@ android {
 dependencies {
     implementation(project(":tdlib"))
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
-    implementation("androidx.compose.material3:material3")
+    // Material 3 Expressive (MaterialExpressiveTheme, segmented lists, shape morphing) is only in 1.5; the BOM still pins 1.4.
+    implementation("androidx.compose.material3:material3:1.5.0-beta01")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("androidx.car.app:app:1.7.0")

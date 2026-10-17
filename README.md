@@ -8,7 +8,7 @@ Hands-free Telegram for Android Auto. Listen to your chats and reply by voice wh
 - **Play:** reads the unread messages aloud, or the last few if everything is read. An optional AI step fixes typos and punctuation first so the speech sounds natural.
 - **Mic:** records your reply, converts it to text, and can tidy up filler and false starts. It reads the result back and sends it only after you confirm, unless you turn on auto-send.
 - **Notifications:** new messages show up in Android Auto with Reply and Mark as read.
-- **Phone app:** Telegram login and settings. Material 3 with dynamic colour.
+- **Phone app:** Telegram login and settings, in Material 3 Expressive with dynamic colour.
 - **Swappable engines:** text to speech, speech to text and the AI rewriter sit behind small interfaces (`Engines.kt`). The default is [OpenRouter](https://openrouter.ai), with Android's built-in text to speech as an alternative.
 
 ## Install

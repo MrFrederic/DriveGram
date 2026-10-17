@@ -1,54 +1,65 @@
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+
 package app.drivegram
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Badge
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.DisposableEffect
-import androidx.core.content.ContextCompat
-import kotlinx.coroutines.delay
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ListItem
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -59,15 +70,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
 
@@ -97,25 +112,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-}
-
-@Composable
-fun DriveGramTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val context = LocalContext.current
-    val colors = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> darkColorScheme()
-        else -> lightColorScheme()
-    }
-    MaterialTheme(colorScheme = colors) { Surface(Modifier.fillMaxSize(), content = content) }
-}
-
-@Composable
-private fun Centered(text: String) {
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        if (text.isEmpty()) CircularProgressIndicator() else Text(text, style = MaterialTheme.typography.bodyLarge)
     }
 }
 
@@ -167,11 +163,12 @@ private fun LoginScreen(tg: Telegram, state: TdApi.AuthorizationState?) {
     val hidden = step.keyboard == KeyboardType.Password
 
     Column(
-        Modifier.fillMaxSize().imePadding().padding(24.dp),
+        Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
     ) {
-        Text(step.title, style = MaterialTheme.typography.headlineMedium)
-        step.hint?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        ShapedIcon(R.drawable.ic_chats, shape = MaterialShapes.SoftBurst.toShape(), size = 88.dp)
+        Text(step.title, style = MaterialTheme.typography.headlineLargeEmphasized)
+        step.hint?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         OutlinedTextField(
             value = input,
             onValueChange = { input = it; error = null },
@@ -181,6 +178,7 @@ private fun LoginScreen(tg: Telegram, state: TdApi.AuthorizationState?) {
             supportingText = error?.let { { Text(it) } },
             visualTransformation = if (hidden) PasswordVisualTransformation() else VisualTransformation.None,
             keyboardOptions = KeyboardOptions(keyboardType = step.keyboard),
+            shape = MaterialTheme.shapes.large,
             modifier = Modifier.fillMaxWidth(),
         )
         Button(
@@ -199,8 +197,13 @@ private fun LoginScreen(tg: Telegram, state: TdApi.AuthorizationState?) {
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Continue") }
+            shapes = ButtonDefaults.shapesFor(ButtonDefaults.MediumContainerHeight),
+            contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight),
+            modifier = Modifier.fillMaxWidth().heightIn(min = ButtonDefaults.MediumContainerHeight),
+        ) {
+            if (busy) LoadingIndicator(Modifier.size(ButtonDefaults.iconSizeFor(ButtonDefaults.MediumContainerHeight) * 1.5f), color = LocalContentColor.current)
+            else Text("Continue", style = ButtonDefaults.textStyleFor(ButtonDefaults.MediumContainerHeight))
+        }
         if (keysRejected) WrongApiKeys(onReset = tg::resetApiKeys)
     }
 }
@@ -214,7 +217,6 @@ fun TdApi.Chat.toRow() = ChatRow(id, title, unreadCount, preview(lastMessage))
 fun preview(message: TdApi.Message?): String =
     message?.let { spokenMessages(listOf(it), isGroup = false, names = emptyMap(), defaultLang = phoneLang()).single().text() }.orEmpty()
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatListScreen(tg: Telegram, onSettings: () -> Unit) {
     val folders by tg.folders.collectAsStateWithLifecycle()
@@ -240,48 +242,133 @@ private fun ChatListScreen(tg: Telegram, onSettings: () -> Unit) {
         try { tg.load(list, 50) } catch (e: TdException) { loadError = e.error.message }
     }
     val rows = remember(version, selected, folders) { tg.chatsIn(list, 50).map { it.toRow() } }
+    val unreadChats = rows.count { it.unread > 0 }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val background = MaterialTheme.colorScheme.surfaceContainer
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = background,
         topBar = {
-            TopAppBar(
+            LargeFlexibleTopAppBar(
                 title = { Text("DriveGram") },
+                subtitle = { Text(if (unreadChats == 0) "All caught up" else "$unreadChats unread ${if (unreadChats == 1) "chat" else "chats"}") },
                 actions = {
-                    IconButton(onClick = onSettings) { Icon(painterResource(R.drawable.ic_settings), contentDescription = "Settings") }
+                    IconButton(onClick = onSettings, shapes = IconButtonDefaults.shapes()) {
+                        Icon(painterResource(R.drawable.ic_settings), contentDescription = "Settings")
+                    }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = background, scrolledContainerColor = background),
+                scrollBehavior = scrollBehavior,
             )
         },
     ) { padding ->
-        Column(Modifier.padding(padding)) {
+        Column(Modifier.padding(top = padding.calculateTopPadding())) {
             if (folders.isNotEmpty()) {
-                PrimaryScrollableTabRow(selectedTabIndex = selected.coerceAtMost(folders.size)) {
-                    Tab(selected == 0, onClick = { selected = 0 }, text = { Text("All chats") })
-                    folders.forEachIndexed { i, folder ->
-                        Tab(selected == i + 1, onClick = { selected = i + 1 }, text = { Text(folder.title) })
+                val titles = listOf("All chats") + folders.map { it.title }
+                FolderRow(titles, selected.coerceAtMost(folders.size)) { selected = it }
+            }
+            loadError?.let { Text("Couldn't load chats: $it", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
+            SegmentedSurface {
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = padding.calculateBottomPadding() + 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
+                ) {
+                    itemsIndexed(rows, key = { _, row -> row.id }) { i, row ->
+                        ChatItem(
+                            row,
+                            index = i,
+                            count = rows.size,
+                            playing = playingChat == row.id,
+                            loading = playingChat == row.id && playLoading,
+                            onPlay = { reader.toggle(row.id) },
+                            onReply = { replyTo = row },
+                            // Chats move when a message arrives: let them slide into place instead of jumping.
+                            modifier = Modifier.animateItem(),
+                        )
                     }
                 }
             }
-            loadError?.let { Text("Couldn't load chats: $it", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
-            LazyColumn {
-                items(rows, key = { it.id }) { row ->
-                    ListItem(
-                        // Unread chats stand out by weight as well as the badge, like Messages and Gmail.
-                        headlineContent = { Text(row.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = if (row.unread > 0) FontWeight.SemiBold else null) },
-                        supportingContent = { Text(row.preview, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        trailingContent = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (row.unread > 0) Badge { Text("${row.unread}") }
-                                IconButton(onClick = { reader.toggle(row.id) }) {
-                                    val playing = playingChat == row.id
-                                    // Still tappable while loading: it stops, like the Stop icon would.
-                                    if (playing && playLoading) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                                    else Icon(painterResource(if (playing) R.drawable.ic_stop else R.drawable.ic_play), contentDescription = if (playing) "Stop" else "Play")
-                                }
-                                IconButton(onClick = { replyTo = row }) { Icon(painterResource(R.drawable.ic_mic), contentDescription = "Reply") }
-                            }
-                        },
-                    )
+        }
+    }
+}
+
+/** Folders as a connected button group: the selected one turns round, the rest stay squarish. */
+@Composable
+private fun FolderRow(titles: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        itemsIndexed(titles) { i, title ->
+            ToggleButton(
+                checked = i == selected,
+                onCheckedChange = { onSelect(i) },
+                // Unselected buttons default to surfaceContainer, the page colour itself: one step up so they show.
+                colors = ToggleButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                shapes = when (i) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    titles.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+            ) { Text(title, maxLines = 1) }
+        }
+    }
+}
+
+@Composable
+private fun ChatItem(
+    row: ChatRow,
+    index: Int,
+    count: Int,
+    playing: Boolean,
+    loading: Boolean,
+    onPlay: () -> Unit,
+    onReply: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SegmentedListItem(
+        shapes = ListItemDefaults.segmentedShapes(index, count),
+        modifier = modifier,
+        leadingContent = { ChatAvatar(row) },
+        supportingContent = { Text(row.preview, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        trailingContent = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                // A toggle: it morphs from round to squarish while this chat is being read out.
+                FilledTonalIconToggleButton(checked = playing, onCheckedChange = { onPlay() }, shapes = IconButtonDefaults.toggleableShapes()) {
+                    // Still tappable while loading: it stops, like the Stop icon would.
+                    if (loading) LoadingIndicator(Modifier.size(28.dp), color = LocalContentColor.current)
+                    else Icon(painterResource(if (playing) R.drawable.ic_stop else R.drawable.ic_play), contentDescription = if (playing) "Stop" else "Play")
+                }
+                FilledTonalIconButton(onClick = onReply, shapes = IconButtonDefaults.shapes()) {
+                    Icon(painterResource(R.drawable.ic_mic), contentDescription = "Reply")
                 }
             }
+        },
+    ) {
+        // Unread chats stand out by weight as well as the badge, like Messages and Gmail.
+        Text(row.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = if (row.unread > 0) FontWeight.SemiBold else null)
+    }
+}
+
+/** First letter of the chat on a shape: a cookie for unread chats, a plain circle for read ones. */
+@Composable
+private fun ChatAvatar(row: ChatRow) {
+    val unread = row.unread > 0
+    val colors = MaterialTheme.colorScheme
+    // The end padding keeps a wide badge ("12") off the chat title.
+    BadgedBox(badge = { if (unread) Badge { Text("${row.unread}") } }, Modifier.padding(end = 6.dp)) {
+        Box(
+            Modifier.size(44.dp)
+                .clip(if (unread) MaterialShapes.Cookie9Sided.toShape() else MaterialShapes.Circle.toShape())
+                .background(if (unread) colors.primaryContainer else colors.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                row.title.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "#",
+                style = MaterialTheme.typography.titleMediumEmphasized,
+                color = if (unread) colors.onPrimaryContainer else colors.onSurfaceVariant,
+            )
         }
     }
 }
@@ -321,11 +408,21 @@ private fun ReplyDialog(chat: ChatRow, onDone: () -> Unit) {
         ReplyState.Sent -> "Sent" to null
         ReplyState.Cancelled -> "Cancelled" to null
     }
+    val waiting = state == ReplyState.Working || state == ReplyState.Sending
     AlertDialog(
         onDismissRequest = { current.cancel() },
-        title = { Text("Reply to ${chat.title}") },
-        text = { Text(text) },
-        confirmButton = { primary?.let { (label, action) -> TextButton(onClick = action) { Text(label) } } },
-        dismissButton = { if (state != ReplyState.Sent) TextButton(onClick = { current.cancel() }) { Text("Cancel") } },
+        icon = {
+            // The mic sits on a burst while it listens, a calm circle otherwise; the indicator takes over while waiting.
+            if (waiting) LoadingIndicator(Modifier.size(48.dp))
+            else ShapedIcon(
+                if (state == ReplyState.Sent) R.drawable.ic_check else R.drawable.ic_mic,
+                shape = if (state == ReplyState.Recording) MaterialShapes.SoftBurst.toShape() else MaterialShapes.Circle.toShape(),
+                size = 56.dp,
+            )
+        },
+        title = { Text("Reply to ${chat.title}", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        text = { Text(text, style = MaterialTheme.typography.bodyLarge) },
+        confirmButton = { primary?.let { (label, action) -> Button(onClick = action, shapes = ButtonDefaults.shapes()) { Text(label) } } },
+        dismissButton = { if (state != ReplyState.Sent) TextButton(onClick = { current.cancel() }, shapes = ButtonDefaults.shapes()) { Text("Cancel") } },
     )
 }
