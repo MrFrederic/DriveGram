@@ -17,8 +17,8 @@ android {
         applicationId = "app.drivegram"
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         buildConfigField("int", "TG_API_ID", local.getProperty("telegram.apiId", "0").ifBlank { "0" })
         buildConfigField("String", "TG_API_HASH", "\"${local.getProperty("telegram.apiHash", "")}\"")
     }
