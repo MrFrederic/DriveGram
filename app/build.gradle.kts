@@ -18,9 +18,20 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1"
+        versionName = "1.0.0"
         buildConfigField("int", "TG_API_ID", local.getProperty("telegram.apiId", "0").ifBlank { "0" })
         buildConfigField("String", "TG_API_HASH", "\"${local.getProperty("telegram.apiHash", "")}\"")
+    }
+    // Release signing comes from GitHub Actions secrets (see .github/workflows/release.yml). Without them the release APK is unsigned.
+    val keystore = System.getenv("DRIVEGRAM_KEYSTORE")
+    if (keystore != null) {
+        signingConfigs.create("release") {
+            storeFile = file(keystore)
+            storePassword = System.getenv("DRIVEGRAM_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("DRIVEGRAM_KEY_ALIAS")
+            keyPassword = System.getenv("DRIVEGRAM_KEY_PASSWORD")
+        }
+        buildTypes.getByName("release").signingConfig = signingConfigs.getByName("release")
     }
     buildFeatures {
         compose = true

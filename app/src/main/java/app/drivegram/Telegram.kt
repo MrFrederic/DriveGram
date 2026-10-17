@@ -30,7 +30,7 @@ interface ChatSource {
 }
 
 /** One TDLib client for the whole process. Keeps the chat cache that TDLib expects clients to maintain from updates. */
-class Telegram(private val context: Context) : ChatSource {
+class Telegram(private val context: Context, private val settings: Settings) : ChatSource {
     private val _auth = MutableStateFlow<TdApi.AuthorizationState?>(null)
     override val auth: StateFlow<TdApi.AuthorizationState?> = _auth
 
@@ -54,12 +54,34 @@ class Telegram(private val context: Context) : ChatSource {
     /** TDLib's notification updates, buffered until the Notifier reads them (some arrive right at startup). */
     val notificationUpdates = Channel<TdApi.Update>(Channel.UNLIMITED)
 
-    private val client: Client
+    /** True while TDLib waits for api_id/api_hash that the user hasn't entered yet. */
+    private val _needsApiKeys = MutableStateFlow(false)
+    val needsApiKeys: StateFlow<Boolean> = _needsApiKeys
+
+    private var restarting = false
+
+    private var client: Client
 
     init {
         // Errors only: higher levels can log message content.
         Client.execute(TdApi.SetLogVerbosityLevel(1))
-        client = Client.create({ onUpdate(it) }, null, null)
+        client = newClient()
+    }
+
+    private fun newClient() = Client.create({ onUpdate(it) }, null, null)
+
+    fun useApiKeys(keys: ApiKeys) {
+        settings.telegramApi = keys
+        _needsApiKeys.value = false
+        _startupError.value = null
+        sendParameters(keys)
+    }
+
+    /** Forgets the keys and restarts TDLib, which then asks for new ones. Only called before login. */
+    fun resetApiKeys() {
+        settings.telegramApi = null
+        restarting = true
+        client.send(TdApi.Destroy()) {}
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -146,7 +168,11 @@ class Telegram(private val context: Context) : ChatSource {
     private fun onUpdate(update: TdApi.Object) {
         when (update) {
             is TdApi.UpdateAuthorizationState -> {
-                if (update.authorizationState is TdApi.AuthorizationStateWaitTdlibParameters) sendParameters()
+                when (update.authorizationState) {
+                    is TdApi.AuthorizationStateWaitTdlibParameters -> settings.telegramApi?.let(::sendParameters) ?: run { _needsApiKeys.value = true }
+                    // After resetApiKeys: start over with an empty database so the next keys get a clean session.
+                    is TdApi.AuthorizationStateClosed -> if (restarting) { restarting = false; client = newClient(); return }
+                }
                 _auth.value = update.authorizationState
             }
             is TdApi.UpdateNewChat -> chats[update.chat.id] = update.chat
@@ -191,7 +217,7 @@ class Telegram(private val context: Context) : ChatSource {
         }
     }
 
-    private fun sendParameters() {
+    private fun sendParameters(keys: ApiKeys) {
         val dir = context.filesDir.resolve("tdlib").absolutePath
         val params = TdApi.SetTdlibParameters().apply {
             databaseDirectory = dir
@@ -201,8 +227,8 @@ class Telegram(private val context: Context) : ChatSource {
             useChatInfoDatabase = true
             useMessageDatabase = true
             useSecretChats = false
-            apiId = BuildConfig.TG_API_ID
-            apiHash = BuildConfig.TG_API_HASH
+            apiId = keys.id
+            apiHash = keys.hash
             systemLanguageCode = java.util.Locale.getDefault().language
             deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}"
             systemVersion = "Android ${Build.VERSION.RELEASE}"

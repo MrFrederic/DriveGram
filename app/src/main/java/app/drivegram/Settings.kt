@@ -80,6 +80,20 @@ class Settings(context: Context) {
             prefs.edit().apply { if (value.isNullOrBlank()) remove(OPENROUTER_KEY) else putString(OPENROUTER_KEY, encrypt(value.trim())) }.apply()
         }
 
+    /** Telegram api_id/api_hash: entered in the app, or from local.properties in your own builds. Hash stored encrypted. */
+    var telegramApi: ApiKeys?
+        get() {
+            val id = prefs.getInt(TG_API_ID, 0)
+            val hash = prefs.getString(TG_API_HASH, null)?.let { runCatching { decrypt(it) }.getOrNull() }
+            return if (id != 0 && hash != null) ApiKeys(id, hash)
+            else ApiKeys(BuildConfig.TG_API_ID, BuildConfig.TG_API_HASH).takeIf { it.id != 0 }
+        }
+        set(value) {
+            prefs.edit().apply {
+                if (value == null) remove(TG_API_ID).remove(TG_API_HASH) else putInt(TG_API_ID, value.id).putString(TG_API_HASH, encrypt(value.hash))
+            }.apply()
+        }
+
     private fun keystoreKey(): SecretKey {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
@@ -114,6 +128,8 @@ class Settings(context: Context) {
         const val DEFAULT_TTS_VOICE = "Kore"
         const val DEFAULT_STT_MODEL = "elevenlabs/scribe-v2"
         private const val OPENROUTER_KEY = "openrouter_key"
+        private const val TG_API_ID = "tg_api_id"
+        private const val TG_API_HASH = "tg_api_hash"
         private const val KEY_ALIAS = "drivegram_settings"
         private const val AES_GCM = "AES/GCM/NoPadding"
         private const val GCM_IV_BYTES = 12

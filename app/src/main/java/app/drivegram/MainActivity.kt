@@ -80,8 +80,9 @@ class MainActivity : ComponentActivity() {
             DriveGramTheme {
                 val auth by tg.auth.collectAsStateWithLifecycle()
                 val startupError by tg.startupError.collectAsStateWithLifecycle()
+                val needsApiKeys by tg.needsApiKeys.collectAsStateWithLifecycle()
                 when {
-                    BuildConfig.TG_API_ID == 0 -> Centered("Add telegram.apiId and telegram.apiHash to local.properties, then rebuild.")
+                    needsApiKeys -> ApiKeysScreen(onSave = tg::useApiKeys)
                     startupError != null -> Centered("TDLib didn't start: $startupError")
                     auth is TdApi.AuthorizationStateReady -> {
                         var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -162,6 +163,7 @@ private fun LoginScreen(tg: Telegram, state: TdApi.AuthorizationState?) {
     var input by rememberSaveable(step.title) { mutableStateOf("") }
     var error by remember(step.title) { mutableStateOf<String?>(null) }
     var busy by remember(step.title) { mutableStateOf(false) }
+    var keysRejected by remember(step.title) { mutableStateOf(false) }
     val hidden = step.keyboard == KeyboardType.Password
 
     Column(
@@ -190,7 +192,8 @@ private fun LoginScreen(tg: Telegram, state: TdApi.AuthorizationState?) {
                     try {
                         tg.send(step.submit(input.trim()))
                     } catch (e: TdException) {
-                        error = e.error.message
+                        keysRejected = "API_ID" in e.error.message
+                        error = if (keysRejected) "Telegram didn't accept these API keys." else e.error.message
                     } finally {
                         busy = false
                     }
@@ -198,6 +201,7 @@ private fun LoginScreen(tg: Telegram, state: TdApi.AuthorizationState?) {
             },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Continue") }
+        if (keysRejected) WrongApiKeys(onReset = tg::resetApiKeys)
     }
 }
 

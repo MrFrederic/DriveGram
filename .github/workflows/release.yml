@@ -1,0 +1,36 @@
+# Push a tag like v1.0.0 to build a signed APK and publish it as a GitHub release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Build signed APK
+        env:
+          DRIVEGRAM_KEYSTORE: ${{ runner.temp }}/release.jks
+          DRIVEGRAM_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          DRIVEGRAM_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          DRIVEGRAM_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$DRIVEGRAM_KEYSTORE"
+          ./gradlew --no-daemon :app:assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "DriveGram-${GITHUB_REF_NAME}.apk"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "DriveGram-${GITHUB_REF_NAME}.apk" --title "DriveGram ${GITHUB_REF_NAME#v}" --generate-notes

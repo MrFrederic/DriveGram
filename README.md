@@ -11,17 +11,22 @@ Hands-free Telegram for Android Auto. Listen to your chats and reply by voice wh
 - **Phone app:** Telegram login and settings. Material 3 with dynamic colour.
 - **Swappable engines:** text to speech, speech to text and the AI rewriter sit behind small interfaces (`Engines.kt`). The default is [OpenRouter](https://openrouter.ai), with Android's built-in text to speech as an alternative.
 
+## Install
+
+Download the APK from [Releases](https://github.com/MrFrederic/DriveGram/releases/latest). Requires Android 10 or later.
+
+On first launch the app asks for your own Telegram API keys: an `api_id` and `api_hash` from <https://my.telegram.org> → API development tools. Telegram requires each unofficial app to use its own keys. Creating them is free and takes a minute, and the app walks you through it. Then sign in to Telegram. If you want the AI features, paste an OpenRouter key in Settings.
+
 ## Build
 
-1. Get an `api_id` and `api_hash` at <https://my.telegram.org> → API development tools, and put them in `local.properties` (it isn't committed):
-   ```
-   telegram.apiId=1234567
-   telegram.apiHash=0123456789abcdef0123456789abcdef
-   ```
-2. Run `./gradlew :app:installDebug`.
-3. In the app, sign in to Telegram. If you want the AI features, paste an OpenRouter key in Settings.
+Run `./gradlew :app:installDebug`. To skip the key screen in your own builds, put your keys in `local.properties` (it isn't committed):
 
-Requires Android 10 or later.
+```
+telegram.apiId=1234567
+telegram.apiHash=0123456789abcdef0123456789abcdef
+```
+
+Pushing a `v*` tag runs [the release workflow](.github/workflows/release.yml), which builds a signed APK and publishes it as a GitHub release. The signing key comes from the repository secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD`.
 
 ## Run it in Android Auto
 
