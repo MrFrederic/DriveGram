@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,6 +72,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -208,10 +213,13 @@ private fun LoginScreen(tg: Telegram, state: TdApi.AuthorizationState?) {
     }
 }
 
-/** Immutable snapshot for the UI: TdApi.Chat is mutated in place, so Compose can't see changes on it. */
-data class ChatRow(val id: Long, val title: String, val unread: Int, val preview: String)
+/**
+ * Immutable snapshot for the UI: TdApi.Chat is mutated in place, so Compose can't see changes on it.
+ * [photoId] is the small photo's file id, so a new chat photo counts as a change.
+ */
+data class ChatRow(val id: Long, val title: String, val unread: Int, val preview: String, val photoId: Int? = null)
 
-fun TdApi.Chat.toRow() = ChatRow(id, title, unreadCount, preview(lastMessage))
+fun TdApi.Chat.toRow() = ChatRow(id, title, unreadCount, preview(lastMessage), photo?.small?.id)
 
 /** The same words Play would say, minus the sender. Service messages preview as empty. */
 fun preview(message: TdApi.Message?): String =
@@ -279,6 +287,7 @@ private fun ChatListScreen(tg: Telegram, onSettings: () -> Unit) {
                             row,
                             index = i,
                             count = rows.size,
+                            photo = rememberChatPhoto(tg, row),
                             playing = playingChat == row.id,
                             loading = playingChat == row.id && playLoading,
                             onPlay = { reader.toggle(row.id) },
@@ -321,6 +330,7 @@ private fun ChatItem(
     row: ChatRow,
     index: Int,
     count: Int,
+    photo: ImageBitmap?,
     playing: Boolean,
     loading: Boolean,
     onPlay: () -> Unit,
@@ -330,7 +340,7 @@ private fun ChatItem(
     SegmentedListItem(
         shapes = ListItemDefaults.segmentedShapes(index, count),
         modifier = modifier,
-        leadingContent = { ChatAvatar(row) },
+        leadingContent = { ChatAvatar(row, photo) },
         supportingContent = { Text(row.preview, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -351,9 +361,27 @@ private fun ChatItem(
     }
 }
 
-/** First letter of the chat on a shape: a cookie for unread chats, a plain circle for read ones. */
+/**
+ * The chat's Telegram photo once it's downloaded, null until then (or if it has none). Shares [Avatars]' cache and
+ * size with the car and notifications, so a photo fetched for one is there for the others.
+ */
 @Composable
-private fun ChatAvatar(row: ChatRow) {
+private fun rememberChatPhoto(tg: Telegram, row: ChatRow): ImageBitmap? {
+    val chat = tg.chat(row.id)
+    var photo by remember(row.id, row.photoId) {
+        mutableStateOf(chat?.takeIf { row.photoId != null && !Avatars.missing(it, AVATAR_PX) }?.let { Avatars.now(it, AVATAR_PX).asImageBitmap() })
+    }
+    LaunchedEffect(row.id, row.photoId) {
+        if (photo == null && chat != null && row.photoId != null && Avatars.load(tg, chat, AVATAR_PX)) photo = Avatars.now(chat, AVATAR_PX).asImageBitmap()
+    }
+    return photo
+}
+
+private const val AVATAR_PX = 128
+
+/** The chat photo, else its first letter, on a shape: a cookie for unread chats, a plain circle for read ones. */
+@Composable
+private fun ChatAvatar(row: ChatRow, photo: ImageBitmap?) {
     val unread = row.unread > 0
     val colors = MaterialTheme.colorScheme
     // The end padding keeps a wide badge ("12") off the chat title.
@@ -361,14 +389,19 @@ private fun ChatAvatar(row: ChatRow) {
         Box(
             Modifier.size(44.dp)
                 .clip(if (unread) MaterialShapes.Cookie9Sided.toShape() else MaterialShapes.Circle.toShape())
-                .background(if (unread) colors.primaryContainer else colors.surfaceVariant),
+                // No fill behind a photo: Avatars' photos are already round, and a fill would peek out at the cookie's tips.
+                .background(if (photo != null) Color.Transparent else if (unread) colors.primaryContainer else colors.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                row.title.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "#",
-                style = MaterialTheme.typography.titleMediumEmphasized,
-                color = if (unread) colors.onPrimaryContainer else colors.onSurfaceVariant,
-            )
+            if (photo != null) {
+                Image(photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                Text(
+                    row.title.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "#",
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    color = if (unread) colors.onPrimaryContainer else colors.onSurfaceVariant,
+                )
+            }
         }
     }
 }
