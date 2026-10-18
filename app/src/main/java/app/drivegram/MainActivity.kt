@@ -11,7 +11,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,7 +74,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.roundToInt
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -390,18 +392,20 @@ private fun ChatAvatar(row: ChatRow, photo: ImageBitmap?) {
             Modifier.size(44.dp)
                 .clip(if (unread) MaterialShapes.Cookie9Sided.toShape() else MaterialShapes.Circle.toShape())
                 // No fill behind a photo: Avatars' photos are already round, and a fill would peek out at the cookie's tips.
-                .background(if (photo != null) Color.Transparent else if (unread) colors.primaryContainer else colors.surfaceVariant),
+                .background(if (photo != null) Color.Transparent else if (unread) colors.primaryContainer else colors.surfaceVariant)
+                // The photo is drawn over the letter rather than swapped in as an Image: adding a layout node when the
+                // photo arrives crashed Compose while LazyColumn was prefetching the row ("LayoutNode not found in RectList").
+                .drawWithContent {
+                    if (photo == null) drawContent()
+                    else drawImage(photo, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), filterQuality = FilterQuality.High)
+                },
             contentAlignment = Alignment.Center,
         ) {
-            if (photo != null) {
-                Image(photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            } else {
-                Text(
-                    row.title.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "#",
-                    style = MaterialTheme.typography.titleMediumEmphasized,
-                    color = if (unread) colors.onPrimaryContainer else colors.onSurfaceVariant,
-                )
-            }
+            Text(
+                row.title.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "#",
+                style = MaterialTheme.typography.titleMediumEmphasized,
+                color = if (unread) colors.onPrimaryContainer else colors.onSurfaceVariant,
+            )
         }
     }
 }
