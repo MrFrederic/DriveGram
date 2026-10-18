@@ -125,9 +125,14 @@ abstract class TelegramScreen(
 
     /**
      * Chat rows for [list] (only those passing [filter]), loading the chats from TDLib the first time the list is
-     * shown.
+     * shown. [top] is a row to put above the chats, given whether there are none.
      */
-    protected fun chatList(list: TdApi.ChatList, noItems: String = "No chats here", filter: (TdApi.Chat) -> Boolean = { true }): ItemList? {
+    protected fun chatList(
+        list: TdApi.ChatList,
+        noItems: String = "No chats here",
+        top: ((empty: Boolean) -> Row)? = null,
+        filter: (TdApi.Chat) -> Boolean = { true },
+    ): ItemList? {
         val key = Telegram.key(list)
         val limit = listLimit
         if (key !in loaded && loading.add(key)) {
@@ -143,10 +148,11 @@ abstract class TelegramScreen(
                 }
             }
         }
-        val chats = tg.chatsIn(list, limit).filter(filter)
+        val chats = tg.chatsIn(list, limit).filter(filter).take(if (top == null) limit else limit - 1)
         if (chats.isEmpty() && key in loading) return null // caller shows the loading spinner
         return ItemList.Builder()
             .setNoItemsMessage(noItems)
+            .apply { top?.let { addItem(it(chats.isEmpty())) } }
             .apply { chats.forEach { addItem(chatRow(it)) } }
             .build()
     }
@@ -263,6 +269,8 @@ fun replyScreen(carContext: CarContext, chatId: Long, title: String, toast: Bool
     return null
 }
 
+private const val NO_NEW_MESSAGES = "No new messages during this drive"
+
 class RootScreen(carContext: CarContext, tg: ChatSource, playback: Playback) : TelegramScreen(carContext, tg, playback) {
     /** Telegram dates are in seconds. A new car session is a new drive. */
     private val driveStarted = System.currentTimeMillis() / 1000
@@ -273,12 +281,21 @@ class RootScreen(carContext: CarContext, tg: ChatSource, playback: Playback) : T
                 .setHeader(Header.Builder().setTitle("DriveGram").setStartHeaderAction(Action.APP_ICON).build())
                 .build()
         }
-        val folders = Action.Builder()
-            .setIcon(icon(R.drawable.ic_folder))
-            .setOnClickListener { screenManager.push(FoldersScreen(carContext, tg, playback)) }
-            .build()
+        val openFolders = { screenManager.push(FoldersScreen(carContext, tg, playback)) }
+        val folders = Action.Builder().setIcon(icon(R.drawable.ic_folder)).setOnClickListener(openFolders).build()
+        // Also a row: in a real car the header button didn't show up (not reproducible in the DHU), and without it
+        // there was no way to the other chats. A row always renders, as text if nothing else.
+        val foldersRow = { empty: Boolean ->
+            Row.Builder()
+                .setTitle("All chats and folders")
+                .setImage(icon(R.drawable.ic_folder))
+                .apply { if (empty) addText(NO_NEW_MESSAGES) }
+                .setBrowsable(true)
+                .setOnClickListener(openFolders)
+                .build()
+        }
         return listTemplate(
-            chatList(TdApi.ChatListMain(), "No new messages during this drive") {
+            chatList(TdApi.ChatListMain(), NO_NEW_MESSAGES, foldersRow) {
                 (it.lastMessage?.date ?: 0) >= driveStarted
             },
             Header.Builder().setTitle("This drive").setStartHeaderAction(Action.APP_ICON).addEndHeaderAction(folders).build(),
